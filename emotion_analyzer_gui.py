@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, scrolledtext
+from tkinter import ttk, scrolledtext, messagebox
 import threading
 import sounddevice as sd
 import scipy.io.wavfile as wavfile
@@ -11,6 +11,8 @@ from transformers import Wav2Vec2ForSequenceClassification, Wav2Vec2FeatureExtra
 import speech_recognition as sr
 from transformers import pipeline
 import os
+import sys
+import traceback
 
 class EmotionAnalyzerGUI:
     def __init__(self, root):
@@ -20,6 +22,9 @@ class EmotionAnalyzerGUI:
         self.root.resizable(False, False)
         self.root.configure(bg="#FFF5F7")
         
+        # ウィンドウが閉じられた時のハンドラを設定
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
         # 録音設定
         self.CHANNELS = 1
         self.RATE = 44100
@@ -28,6 +33,7 @@ class EmotionAnalyzerGUI:
         
         # モデルは必要になったときに読み込む
         self.model = None
+        self.is_running = True
         self.feature_extractor = None
         self.sentiment_analyzer = None
         
@@ -39,7 +45,7 @@ class EmotionAnalyzerGUI:
         # タイトル
         title_frame = tk.Frame(self.root, bg="#FFB6C1", height=70)
         title_frame.pack(fill=tk.X, pady=0)
-        title_label = tk.Label(title_frame, text="🎤 感情分析システム ✨", 
+        title_label = tk.Label(title_frame, text="🎤 感情分析アプリ ✨", 
                               font=("Meiryo UI", 22, "bold"), bg="#FFB6C1", fg="white")
         title_label.pack(pady=15)
         
@@ -67,11 +73,11 @@ class EmotionAnalyzerGUI:
         self.record_button.bind("<Enter>", lambda e: self.record_button.config(bg="#6FB8D9"))
         self.record_button.bind("<Leave>", lambda e: self.record_button.config(bg="#87CEEB"))
         
-        # 分析ボタン（薄ピンク）
+        # 分析ボタン（薄いオレンジ）
         self.analyze_button = tk.Button(button_container, text="📊 感情分析", 
                                         font=("Meiryo UI", 14, "bold"),
-                                        bg="#FFB6C1", fg="white",
-                                        activebackground="#FF9FB0",
+                                        bg="#FFB347", fg="white",
+                                        activebackground="#FF9F2E",
                                         width=18, height=2,
                                         relief=tk.FLAT,
                                         bd=0,
@@ -80,8 +86,8 @@ class EmotionAnalyzerGUI:
         self.analyze_button.pack(side=tk.LEFT, padx=15)
         
         # ボタンにホバー効果を追加
-        self.analyze_button.bind("<Enter>", lambda e: self.analyze_button.config(bg="#FF9FB0"))
-        self.analyze_button.bind("<Leave>", lambda e: self.analyze_button.config(bg="#FFB6C1"))
+        self.analyze_button.bind("<Enter>", lambda e: self.analyze_button.config(bg="#FF9F2E"))
+        self.analyze_button.bind("<Leave>", lambda e: self.analyze_button.config(bg="#FFB347"))
         
         # ステータスラベル
         self.status_label = tk.Label(self.root, text="✨ 待機中... ✨", 
@@ -106,14 +112,22 @@ class EmotionAnalyzerGUI:
         
     def update_status(self, message, color="#666"):
         """ステータスラベルを更新"""
-        self.status_label.config(text=message, fg=color)
-        self.root.update()
+        try:
+            if self.is_running:
+                self.status_label.config(text=message, fg=color)
+                self.root.update_idletasks()
+        except Exception as e:
+            print(f"ステータス更新エラー: {e}")
         
     def append_result(self, text):
         """結果テキストに追加"""
-        self.result_text.insert(tk.END, text + "\n")
-        self.result_text.see(tk.END)
-        self.root.update()
+        try:
+            if self.is_running:
+                self.result_text.insert(tk.END, text + "\n")
+                self.result_text.see(tk.END)
+                self.root.update_idletasks()
+        except Exception as e:
+            print(f"結果表示エラー: {e}")
         
     def clear_result(self):
         """結果テキストをクリア"""
@@ -160,6 +174,9 @@ class EmotionAnalyzerGUI:
                              dtype='float32')
             sd.wait()
             
+            if not self.is_running:
+                return
+            
             self.append_result("\n✓ 録音完了")
             self.append_result("🔧 音声処理中...")
             
@@ -185,12 +202,19 @@ class EmotionAnalyzerGUI:
             
             self.update_status("録音完了！感情分析ボタンを押してください", "#28a745")
             
+        except KeyboardInterrupt:
+            self.append_result("\n⚠️  録音がキャンセルされました")
+            self.update_status("録音キャンセル", "#ffc107")
         except Exception as e:
-            self.append_result(f"\n❌ エラー: {str(e)}")
+            error_msg = f"\n❌ 録音エラー: {str(e)}"
+            self.append_result(error_msg)
+            self.append_result(traceback.format_exc())
             self.update_status("録音エラー", "#dc3545")
+            messagebox.showerror("録音エラー", f"録音中にエラーが発生しました:\n{str(e)}")
         finally:
-            self.record_button.config(state=tk.NORMAL)
-            self.analyze_button.config(state=tk.NORMAL)
+            if self.is_running:
+                self.record_button.config(state=tk.NORMAL)
+                self.analyze_button.config(state=tk.NORMAL)
     
     def start_recording(self):
         """録音をスレッドで開始"""
@@ -202,21 +226,28 @@ class EmotionAnalyzerGUI:
     def load_models(self):
         """モデルの読み込み（初回のみ）"""
         if self.model is None:
-            self.append_result("\n🔄 AIモデル読み込み中...")
-            self.update_status("モデル読み込み中...", "#ffc107")
-            
-            model_name = "ehcalabres/wav2vec2-lg-xlsr-en-speech-emotion-recognition"
-            self.feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(model_name)
-            self.model = Wav2Vec2ForSequenceClassification.from_pretrained(model_name)
-            
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            self.model.to(device)
-            self.model.eval()
-            
-            self.sentiment_analyzer = pipeline("sentiment-analysis", 
-                                              model="distilbert-base-uncased-finetuned-sst-2-english")
-            
-            self.append_result("✓ モデル読み込み完了")
+            try:
+                self.append_result("\n🔄 AIモデル読み込み中...")
+                self.update_status("モデル読み込み中...", "#ffc107")
+                
+                model_name = "ehcalabres/wav2vec2-lg-xlsr-en-speech-emotion-recognition"
+                self.feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(model_name)
+                self.model = Wav2Vec2ForSequenceClassification.from_pretrained(model_name)
+                
+                device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                self.model.to(device)
+                self.model.eval()
+                
+                self.sentiment_analyzer = pipeline("sentiment-analysis", 
+                                                  model="distilbert-base-uncased-finetuned-sst-2-english")
+                
+                self.append_result("✓ モデル読み込み完了")
+            except Exception as e:
+                error_msg = f"モデル読み込みエラー: {str(e)}"
+                self.append_result(f"\n❌ {error_msg}")
+                self.append_result(traceback.format_exc())
+                messagebox.showerror("モデルエラー", f"AIモデルの読み込みに失敗しました:\n{str(e)}\n\nインターネット接続を確認してください。")
+                raise
     
     def analyze_emotion(self):
         """感情分析処理"""
@@ -225,6 +256,10 @@ class EmotionAnalyzerGUI:
                 self.append_result("\n❌ エラー: output.wavファイルが見つかりません")
                 self.append_result("先に録音ボタンを押してください")
                 self.update_status("ファイルが見つかりません", "#dc3545")
+                messagebox.showwarning("ファイルなし", "先に録音ボタンを押して音声を録音してください。")
+                return
+            
+            if not self.is_running:
                 return
             
             self.update_status("感情分析中...", "#ffc107")
@@ -334,13 +369,13 @@ class EmotionAnalyzerGUI:
             if text:
                 # キーワードベースの感情検出
                 keywords = {
-                    'happy': ['嬉しい', '幸せ', '楽しい', '良い', 'いい', '最高', '素晴らしい', 'ありがとう', 'よかった'],
-                    'joyful': ['喜び', '喜ぶ', 'わくわく', 'ワクワク', '楽しみ', '面白い', 'うれしい', 'すごい', 'やった', 'わあ'],
-                    'calm': ['落ち着', '穏やか', '平和', '安心', 'リラックス', '静か', 'ゆっくり', '普通', 'まあまあ'],
+                    'happy': ['嬉しい', '幸せ', '楽しい', '良い', 'いい', '最高', '素晴らしい', 'ありがとう', 'よかった', 'とても嬉しい', '大好き'],
+                    'joyful': ['喜び', '喜ぶ', 'わくわく', 'ワクワク', '楽しみ', '面白い', 'うれしい', 'すごい', 'やった', 'わあ', 'やったー'],
+                    'calm': ['落ち着', '穏やか', '平和', '安心', 'リラックス', '静か', 'ゆっくり'],
                     'excitement': ['イライラ', 'ソワソワ', '焦', '落ち着かない', 'バタバタ', '慌て', '急', '忙しい', '追われ'],
-                    'angry': ['怒', '腹立', 'むかつ', '許せない', 'ふざけるな', 'うるさい'],
-                    'sad': ['悲しい', '寂しい', '辛い', '残念', '泣', '涙', '苦しい', '悲'],
-                    'fearful': ['怖い', '不安', '心配', '恐ろしい', 'ドキドキ', '緊張', '震え']
+                    'angry': ['怒', '腹立', 'むかつ', '許せない', 'ふざけるな', 'うるさい', 'イラつ', 'ムカつ', 'やめろ', '馬鹿', 'バカ', 'ダメ', '最悪', 'ひどい', '酷い', '信じられない', '何', 'なに', 'うざ', 'ウザ', '黙れ', '切れ', 'キレ', '腹が立', '頭にくる', '頭に来る'],
+                    'sad': ['悲しい', '寂しい', '辛い', '残念', '泣', '涙', '苦しい', '悲', 'どうして'],
+                    'fearful': ['怖い', '不安', '心配', '恐ろしい', 'ドキドキ', '緊張', '震え', '嫌', '来ないで']
                 }
                 
                 keyword_scores = {emotion: 0 for emotion in keywords.keys()}
@@ -496,14 +531,20 @@ class EmotionAnalyzerGUI:
             
             self.update_status("分析完了！", "#28a745")
             
+        except KeyboardInterrupt:
+            self.append_result("\n⚠️  分析がキャンセルされました")
+            self.update_status("分析キャンセル", "#ffc107")
         except Exception as e:
-            import traceback
-            self.append_result(f"\n❌ エラー: {str(e)}")
-            self.append_result(traceback.format_exc())
+            error_msg = f"\n❌ 分析エラー: {str(e)}"
+            self.append_result(error_msg)
+            error_trace = traceback.format_exc()
+            self.append_result(error_trace)
             self.update_status("分析エラー", "#dc3545")
+            messagebox.showerror("分析エラー", f"感情分析中にエラーが発生しました:\n{str(e)}\n\n詳細はログを確認してください。")
         finally:
-            self.analyze_button.config(state=tk.NORMAL)
-            self.record_button.config(state=tk.NORMAL)
+            if self.is_running:
+                self.analyze_button.config(state=tk.NORMAL)
+                self.record_button.config(state=tk.NORMAL)
     
     def start_analysis(self):
         """分析をスレッドで開始"""
@@ -511,11 +552,62 @@ class EmotionAnalyzerGUI:
         thread = threading.Thread(target=self.analyze_emotion)
         thread.daemon = True
         thread.start()
+    
+    def on_closing(self):
+        """ウィンドウを閉じる時の処理"""
+        if messagebox.askokcancel("終了確認", "アプリケーションを終了しますか？"):
+            self.is_running = False
+            try:
+                self.root.quit()
+            except:
+                pass
+            try:
+                self.root.destroy()
+            except:
+                pass
 
 def main():
-    root = tk.Tk()
-    app = EmotionAnalyzerGUI(root)
-    root.mainloop()
+    try:
+        root = tk.Tk()
+        
+        # アプリケーションのエラーハンドリング
+        def report_callback_exception(exc_type, exc_value, exc_traceback):
+            error_msg = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+            print(f"予期しないエラー:\n{error_msg}")
+            try:
+                messagebox.showerror("エラー", f"予期しないエラーが発生しました:\n{exc_value}\n\nアプリケーションは継続します。")
+            except:
+                pass
+        
+        tk.Tk.report_callback_exception = report_callback_exception
+        
+        app = EmotionAnalyzerGUI(root)
+        
+        # メインループを堅牢に
+        while True:
+            try:
+                root.mainloop()
+                break
+            except KeyboardInterrupt:
+                print("キーボード割り込みを受信しました")
+                break
+            except Exception as e:
+                print(f"メインループエラー: {e}")
+                traceback.print_exc()
+                # エラーが発生してもアプリを継続
+                try:
+                    root.update()
+                except:
+                    break
+                    
+    except Exception as e:
+        print(f"致命的エラーが発生しました: {str(e)}")
+        traceback.print_exc()
+        try:
+            messagebox.showerror("致命的エラー", f"アプリケーションの起動に失敗しました:\n{str(e)}")
+        except:
+            pass
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

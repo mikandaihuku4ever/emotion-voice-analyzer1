@@ -78,13 +78,13 @@ joyful_prob = raw_results['calm'] * 0.3 + raw_results['happy'] * 0.7
 
 # 中立を振り分け（ポジティブ→落ち着き、ネガティブ→興奮）
 neutral_prob = raw_results['neutral']
-neutral_to_calm = neutral_prob * 0.6  # 中立の60%を落ち着きに
-neutral_to_excitement = neutral_prob * 0.4  # 中立の40%を興奮(ネガティブ)に
+neutral_to_calm = neutral_prob * 0.4  # 中立の40%を落ち着きに（減少）
+neutral_to_excitement = neutral_prob * 0.6  # 中立の60%を興奮(ネガティブ)に（増加）
 
 # 怒りを「本当の怒り」と「興奮(ネガティブ)」に分ける
-anger_prob = raw_results['angry'] + disgust_prob * 0.6
-excitement_from_anger = anger_prob * 0.5  # 怒りの50%を興奮に
-real_anger_prob = anger_prob * 0.5  # 怒りの50%を本当の怒りとして残す
+anger_prob = raw_results['angry'] + disgust_prob * 0.7  # disgustも怒りに多く配分
+excitement_from_anger = anger_prob * 0.3  # 怒りの30%を興奮に（減少）
+real_anger_prob = anger_prob * 0.7  # 怒りの70%を本当の怒りとして残す（増加）
 
 # 興奮をネガティブな感情として統合（イライラ、焦り、不安定な状態）
 total_excitement = excitement_from_anger + neutral_to_excitement
@@ -92,12 +92,11 @@ total_excitement = excitement_from_anger + neutral_to_excitement
 voice_emotions = {
     'happy': raw_results['happy'] * 0.3,
     'joyful': joyful_prob,
-    'calm': raw_results['calm'] * 0.7 + neutral_to_calm,  # 中立のポジティブ部分を追加
+    'calm': raw_results['calm'] * 0.5 + neutral_to_calm,  # calmの基本値も減らす
     'excitement': total_excitement,  # ネガティブな興奮（イライラ、焦り）
     'angry': real_anger_prob,
-    'angry': real_anger_prob,
     'sad': raw_results['sad'],
-    'fearful': raw_results['fearful'] + disgust_prob * 0.4
+    'fearful': raw_results['fearful'] + disgust_prob * 0.3
 }
 
 print("✓ 音声感情分析完了")
@@ -149,13 +148,13 @@ if text:
         
         # キーワードベースの感情検出（日本語対応）
         keywords = {
-            'happy': ['嬉しい', '幸せ', '楽しい', '良い', 'いい', '最高', '素晴らしい', 'ありがとう', 'よかった'],
-            'joyful': ['喜び', '喜ぶ', 'わくわく', 'ワクワク', '楽しみ', '面白い', 'うれしい', 'すごい', 'やった', 'わあ'],
-            'calm': ['落ち着', '穏やか', '平和', '安心', 'リラックス', '静か', 'ゆっくり', '普通', 'まあまあ'],
+            'happy': ['嬉しい', '幸せ', '楽しい', '良い', 'いい', '最高', '素晴らしい', 'ありがとう', 'よかった', 'とても嬉しい', '大好き'],
+            'joyful': ['喜び', '喜ぶ', 'わくわく', 'ワクワク', '楽しみ', '面白い', 'うれしい', 'すごい', 'やった', 'わあ', 'やったー'],
+            'calm': ['落ち着', '穏やか', '平和', '安心', 'リラックス', '静か', 'ゆっくり'],
             'excitement': ['イライラ', 'ソワソワ', '焦', '落ち着かない', 'バタバタ', '慌て', '急', '忙しい', '追われ'],
-            'angry': ['怒', '腹立', 'むかつ', '許せない', 'ふざけるな', 'うるさい'],
-            'sad': ['悲しい', '寂しい', '辛い', '残念', '泣', '涙', '苦しい', '悲'],
-            'fearful': ['怖い', '不安', '心配', '恐ろしい', 'ドキドキ', '緊張', '震え']
+            'angry': ['怒', '腹立', 'むかつ', '許せない', 'ふざけるな', 'うるさい', 'イラつ', 'ムカつ', 'やめろ', '馬鹿', 'バカ', 'ダメ', '最悪', 'ひどい', '酷い', '信じられない', '何', 'なに', 'うざ', 'ウザ', '黙れ', '切れ', 'キレ', '腹が立', '頭にくる', '頭に来る'],
+            'sad': ['悲しい', '寂しい', '辛い', '残念', '泣', '涙', '苦しい', '悲', 'どうして'],
+            'fearful': ['怖い', '不安', '心配', '恐ろしい', 'ドキドキ', '緊張', '震え', '嫌', '来ないで']
         }
         
         # キーワードマッチング
