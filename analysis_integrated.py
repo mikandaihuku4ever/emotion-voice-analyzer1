@@ -344,6 +344,80 @@ dominant_emotion_jp = emotions_jp[dominant_emotion]
 
 print(f"\n🎯 判定結果: {dominant_emotion_jp} ({final_emotions[dominant_emotion]:.1%})")
 
+# 音声とテキストの判定結果比較
+if text_emotions:
+    voice_dominant = max(voice_emotions, key=voice_emotions.get)
+    text_dominant = max(text_emotions, key=text_emotions.get)
+    
+    voice_dominant_jp = emotions_jp[voice_dominant]
+    text_dominant_jp = emotions_jp[text_dominant]
+    
+    print(f"\n🔍 詳細分析:")
+    print(f"  🎤 音声分析: {voice_dominant_jp} ({voice_emotions[voice_dominant]:.1%})")
+    print(f"  💬 テキスト分析: {text_dominant_jp} ({text_emotions[text_dominant]:.1%})")
+    
+    # 音声とテキストの判定が異なる場合の推測
+    if voice_dominant != text_dominant:
+        print(f"\n  ⚠️  音声と言葉の感情が異なります")
+        
+        # 具体的な推測を行う
+        insights = []
+        
+        # ネガティブな音声 + ポジティブなテキスト
+        if voice_dominant in ['angry', 'sad', 'fearful', 'excitement'] and text_dominant in ['happy', 'joyful', 'calm']:
+            if voice_dominant == 'angry':
+                insights.append("😤 内心では怒りを感じているが、言葉では抑えている可能性")
+                insights.append("   → 表面的には穏やかだが、本音は異なるかもしれません")
+            elif voice_dominant == 'sad':
+                insights.append("😢 悲しみを隠して明るく振る舞っている可能性")
+                insights.append("   → 無理をしている、または気を遣っているかもしれません")
+            elif voice_dominant == 'fearful':
+                insights.append("😰 不安や恐怖を感じながらも前向きな言葉を使っている")
+                insights.append("   → 心配事を抱えつつも、それを表に出さないようにしている")
+            elif voice_dominant == 'excitement':
+                insights.append("😣 焦りやイライラを感じながら、落ち着いた言葉を選んでいる")
+                insights.append("   → 不安定な気持ちを抑えようとしている可能性")
+        
+        # ポジティブな音声 + ネガティブなテキスト
+        elif voice_dominant in ['happy', 'joyful', 'calm'] and text_dominant in ['angry', 'sad', 'fearful', 'excitement']:
+            if text_dominant == 'angry':
+                insights.append("😠 穏やかな口調で怒りを表現している")
+                insights.append("   → 冷静に不満を伝えている、または言葉の裏に怒りがある可能性")
+            elif text_dominant == 'sad':
+                insights.append("😔 表面的には落ち着いているが、内容は深刻")
+                insights.append("   → 悲しい状況を冷静に受け止めようとしている")
+            elif text_dominant == 'fearful':
+                insights.append("😨 落ち着いた口調で不安や心配を語っている")
+                insights.append("   → 冷静さを保とうとしているが、内容は深刻な懸念を含む")
+            elif text_dominant == 'excitement':
+                insights.append("😖 穏やかに見えて、実は焦りや緊張を感じている")
+                insights.append("   → 言葉の裏に切迫感や不安定さが隠れている可能性")
+        
+        # 興奮が関与する特殊なケース
+        elif voice_dominant == 'excitement' or text_dominant == 'excitement':
+            insights.append("🌀 感情が不安定な状態")
+            insights.append("   → イライラ、焦り、または混乱した心理状態の可能性")
+        
+        # 幸福と喜びの違い
+        elif (voice_dominant == 'happy' and text_dominant == 'joyful') or (voice_dominant == 'joyful' and text_dominant == 'happy'):
+            insights.append("😊 ポジティブな感情で一致しています")
+            insights.append("   → 言葉と音声のトーンに若干の違いがありますが、全体的に良好")
+        
+        # その他の不一致
+        else:
+            insights.append("🤔 複雑な感情状態")
+            insights.append("   → 言葉の裏の意味がある可能性、または感情が混在している状態")
+        
+        # 推測を表示
+        print("")
+        print("  💡 推測される心理状態:")
+        for insight in insights:
+            print(f"  {insight}")
+        
+    else:
+        print(f"\n  ✅ 音声と言葉の感情が一致しています")
+        print(f"     → 素直な感情表現、または一貫した心理状態")
+
 # 心理的な距離感を計算 (1-10のスケール)
 # 近い (10-8): ポジティブな感情が高い → 親密、安心
 # 中間 (7-4): 混在または興奮
