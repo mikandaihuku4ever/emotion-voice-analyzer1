@@ -308,9 +308,22 @@ else:
 # 固定順序で表示（幸福、喜び、落ち着き、興奮、怒り、悲しみ、恐怖）※中立を削除
 emotion_order = ['happy', 'joyful', 'calm', 'excitement', 'angry', 'sad', 'fearful']
 
+# 英語名の辞書
+emotion_en = {
+    'happy': 'happiness',
+    'joyful': 'joy',
+    'calm': 'calmness',
+    'excitement': 'excitement',
+    'angry': 'anger',
+    'sad': 'sadness',
+    'fearful': 'fear'
+}
+
 for emotion in emotion_order:
     prob = final_emotions[emotion]
     emotion_jp = emotions_jp[emotion]
+    emotion_english = emotion_en[emotion]
+    emotion_display = f"{emotion_jp}（{emotion_english}）"
     bar = "█" * int(prob * 50)
     
     # 音声とテキストの差分を表示
@@ -322,15 +335,55 @@ for emotion in emotion_order:
             marker = " ⚠️ 不一致"
         else:
             marker = ""
-        print(f"{emotion_jp:8s}: {bar} {prob:.3f} (音声:{voice_val:.2f} / テキスト:{text_val:.2f}){marker}")
+        print(f"{emotion_display:20s}: {bar} {prob:.3f} (音声:{voice_val:.2f} / テキスト:{text_val:.2f}){marker}")
     else:
-        print(f"{emotion_jp:8s}: {bar} {prob:.3f}")
+        print(f"{emotion_display:20s}: {bar} {prob:.3f}")
 
 # 最も強い感情
 dominant_emotion = max(final_emotions, key=final_emotions.get)
 dominant_emotion_jp = emotions_jp[dominant_emotion]
 
 print(f"\n🎯 判定結果: {dominant_emotion_jp} ({final_emotions[dominant_emotion]:.1%})")
+
+# 心理的な距離感を計算 (1-10のスケール)
+# 近い (10-8): ポジティブな感情が高い → 親密、安心
+# 中間 (7-4): 混在または興奮
+# 遠い (3-1): ネガティブな感情が高い → 警戒、距離を置く
+
+positive_emotions = final_emotions['happy'] + final_emotions['joyful'] + final_emotions['calm']
+negative_emotions = final_emotions['angry'] + final_emotions['sad'] + final_emotions['fearful']
+excitement_level = final_emotions['excitement']
+
+# 距離感の計算
+# 基本値: ポジティブ感情が高いほど近い(10に近い)、ネガティブが高いほど遠い(1に近い)
+base_distance = 5.5  # 中立からスタート
+distance_score = base_distance + (positive_emotions * 4.5) - (negative_emotions * 4.5)
+
+# 興奮は距離を少し遠くする(警戒しながらも関わる)
+distance_score -= excitement_level * 1.5
+
+# 1-10の範囲に収める
+psychological_distance = max(1, min(10, int(round(distance_score))))
+
+# 距離感の説明
+if psychological_distance >= 8:
+    distance_desc = "非常に近い（親密・安心）"
+    distance_icon = "🤝"
+elif psychological_distance >= 6:
+    distance_desc = "やや近い（友好的）"
+    distance_icon = "😊"
+elif psychological_distance >= 4:
+    distance_desc = "中立・やや遠い（慎重）"
+    distance_icon = "🤔"
+elif psychological_distance >= 2:
+    distance_desc = "遠い（警戒・緊張）"
+    distance_icon = "😰"
+else:
+    distance_desc = "非常に遠い（拒絶・回避）"
+    distance_icon = "🚫"
+
+print(f"\n📏 心理的な距離感: {psychological_distance}/10 {distance_icon}")
+print(f"   → {distance_desc}")
 
 # 統合判断の説明
 if text_emotions:
